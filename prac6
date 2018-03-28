@@ -1,0 +1,106 @@
+#lang racket
+;;;Pracownia6;;;
+
+;;;Zadanie1;;;
+
+(define (arith->rnp e)
+  (define (rec c acc)
+    (cond ([(const? e) (cons e acc)]
+           [(binop? e) (rec (binop-left e) (rec (binop-right e)) cons(bin-op acc))]
+           [else error]))))
+
+;;;Zadanie2;;;
+
+(define empty-stack null)
+
+(define push cons)
+
+(define (pop s) s)
+
+(define (stack? s)
+  (or (null? s)
+      (and (const? (car s))
+           (stack? (cdr s)))))
+
+;;;Zadanie3;;;
+
+(define (eval-rpn e)
+  (define (helper e val-stack)
+    (cond ([(null? e) (car (pop val-stack))]
+           [(number? (car e)) (helper (cdr e) (push (car e) val-stack))]
+           [(op? (car e)) (let ((a (car (pop val-stack)))
+                                (b (car (pop (cdr (pop val-stack))))))
+                            (helper (cdr e) (push ((op->proc (car e)) b a)
+                                                  (cdr (pop (cdr (pop val-stuck)))))))]
+(helper expr null)))))
+
+;;;Zadanie4;;;w racketcie potrzebne są nawiasy bo nie wiedzą ilu argumentów mają użyć
+
+
+;;;Zadanie5;;;
+
+(define (if-zero? e);;;if-zero-bool,if-zero-true,if-zero-false,if
+  (and (list? e)
+       (= (lenght e) 4)
+       (eq? (car e) 'if-zero)))
+
+(define (arith/let/if-expr t)
+  (or...
+   (and (if-zero? t)
+        (arith/let/if-expr? (if-zero-bool t))
+        ...)))
+
+;;;Zadanie6;;;
+
+(define (oper? t)
+  (and (list? t)
+       (> (lenght t) 0)
+       (member? (car t) '(+ - * /))))
+
+(define op car)
+
+(define args cdr)
+
+(define oper-cons cons)
+
+
+(define (arith/let-expr? t)
+  (or (const? t)
+      (and (oper? t)
+        (andmap (arith/let/oper-expr (cdr t))))
+      (and (let? t)
+           (arith/let-expr? (let-expr t))
+           (arith/let-expr? (let-def (let-def-expr t))));;;lub apply
+      (var? t)))
+
+(define (eval-env e env)
+  (cond [(const? e) e]
+        [(oper? e) (apply (op-proc (oper-op e)) (map (lambda (e) (eval-env a env))) (oper-args e))]
+        [(let? e)
+         (eval-env
+           (let-expr e)
+           (env-for-let (let-def e) env))]
+        [(var? e) (find-in-env (var-var e) env)]))
+
+;;;Zadanie7;;;
+
+(define (let-defs t)
+  (if (null? t)
+      #t
+      (and (let-def (car t)) (let-defs? (cdr t)))));;;lub andmap
+
+(define (let-defs? t)
+  (and (list? t)
+       (andmap let-defs? t)))
+
+(define (let-defs e) (cadr e))
+
+(define (let-def e) (car e))
+
+(define (env-for-let defs env)
+  (define (f def my-env)
+    (if (null? def)
+        my-env
+        (f (cdr def) (add-to-env (let-def-var (let-def def)) (eval-env (let-def-expr (let-def def) env)) my-env)
+           (append (f defs empty-env) env)))));;;gdzies się inaczej ponawiasować
+;;;można też map
