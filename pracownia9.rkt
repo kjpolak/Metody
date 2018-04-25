@@ -1,3 +1,4 @@
+
 #lang racket
 ;; pomocnicza funkcja dla list tagowanych o określonej długości
 (define (tagged-tuple? tag len p)  (and (list? p)       (= (length p) len)       (eq? (car p) tag)))
@@ -72,3 +73,4 @@
 ;(computeFact10);(liczfib)#|(define (primes n)  '((sum := 0)    (n := ,n)    (i := 2)    (while (> n 0)           ((divs := 0)            (j := 2)            (while (<= (* j j) i)                   ((if (= (i j) 0)                        (divs := (+ divs 1))                        ())                    (if (> divs 0)                        ()                        ((sum := (+ i sum))                         (n := (- n 1))                         ))))))))|#
 (define prog  '((n := -4)    (while (< n 0)           ((n ++)))))(run prog)
 (define prog2  '((for ((i := -4)          (j := 0)) (< i 0) (i ++)(j ++))))(run prog2)
+(define (translate e)  (cond [(assign? e) e]        [(if? e)         (list 'if (if-cond e) )         (translate (if-then e))         (translate (if-else e))]        [(while? e)         (list 'while (while-cond e) (translate (while-expr e)))]        [(for? e) (list (for-assign e) (list 'while (for-cond e) (list (for-expr e) (for-inc e))))]        [(block? e)         (if (null? e)             null             (cons (translate (car e)) (translate (cdr e))))]))(run (translate prog2))
