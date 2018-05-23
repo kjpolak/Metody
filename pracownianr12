@@ -1,0 +1,55 @@
+#lang racket
+;;;zadanie 1(define/contract (suffixes xs)  (let ([a (new-∀/c 'a)])    (-> (listof a) (listof (listof a))))  (if (null? xs)      (list null)      (cons xs (suffixes (cdr xs)))));(suffixes (list 1 2 3 4))
+(define/contract (dist x y)  (-> number? number? number?)  (abs (- x y)))
+(define/contract (average x y)  (-> number? number? number?)  (/ (+ x y) 2))
+(define/contract (square x)  (-> number? number?)  (* x x))
+;;;zadanie 2#|(define/contract (sqrt x)  (->i ([x positive?])      [result positive?]      #:post (result x)      (if (< (dist x (square result)) 0.0001)          #t          #f)))(sqrt 2)|#
+;;;zadanie 3
+;parametryczny#|(define/contract (filter f xs)  (let ([a (new-∀/c 'a)])  (-> (-> a boolean?) (listof a) (listof a)))  (cond [(null? xs) null]        [(f (car xs)) (cons (car xs) (filter f (cdr xs)))]        [else (filter f (cdr xs))]));(filter number? (list 1 #t 'a 2))|#
+;rozszerzenie do zależnego kontraktu(define/contract (filter f xs) (and/c  (->i ([p (-> any/c boolean?)]        [xs (listof any/c)])       (result (listof any/c))       #:post (result p)       (andmap p result)))  (cond [(null? xs) null]        [(f (car xs)) (cons (car xs) (filter f (cdr xs)))]        [else (filter f (cdr xs))]));(filter number? (list 1 #t 'a 2))
+;;;zadanie 4
+(define-signature monoid^  ((contracted    [elem? (-> any/c boolean?)]    [neutral elem?]    [oper (-> elem? elem? elem?)])))
+(define-unit monoid-int@  (import)  (export monoid^)  (define elem? integer?)  (define neutral 0)  (define oper +))
+(define-values/invoke-unit/infer monoid-int@);(elem? 1)
+;;;dla list
+#|;;;działa(define-signature monoid^  ((contracted    [elem? (-> any/c boolean?)]    [neutral elem?]    [oper (-> elem? elem? elem?)])))
+(define-unit monoid-int@  (import)  (export monoid^)  (define elem? list?)  (define neutral null)  (define oper append))
+(define-values/invoke-unit/infer monoid-int@)|#;;;zadanie 5
+(require quickcheck)
+(quickcheck (property ([l arbitrary-integer]            [k arbitrary-integer]            [m arbitrary-integer])           (eq? (oper neutral l) (oper l neutral))           (eq? (oper k (oper l m))                (oper (oper k l) m))))
+#|(require quickcheck)
+(quickcheck (property ([l (arbitrary-list arbitrary-integer)]            [k (arbitrary-list arbitrary-integer)]            [m (arbitrary-list arbitrary-integer)])           (equal? (oper l neutral) (oper neutral l))))|#
+;;;zadanie 6
+#|#lang typed/racket(: prefixes (All (A) (-> (Listof A) (Listof (Listof A)))))
+(define (prefixes xs)  (if (null? xs)      (list null)      (cons null (map (lambda ([x : (Listof A)]) (cons (car xs) x)) (prefixes (cdr xs))))))
+(prefixes (list 1 2 3 4))|#
+;;;zadanie 7
+#|#lang typed/racket
+;;; drzewa binarne
+(define-type Leaf Null)(define-type (Node A B) (List 'node A (Listof B)))(define-type (Tree A) (U Leaf (Node A (Listof (Tree A)))))
+(define-predicate leaf? Leaf)(define-predicate node? (Node Any (Listof Any)))(define-predicate tree? (Tree Any))
+(: leaf Leaf)(define leaf null)
+(: node-val (All (A B) (-> (Node A B) A)))(define (node-val x)  (cadr x))
+(: node-trees (All (A B) (-> (Node A B) (Listof B))))(define (node-trees x)  (caddr x))
+(: make-node (All (A B) (-> A (Listof B) (Node A (Listof B)))))(define (make-node v xs)  (list 'node v (list xs)))|#
+;;;zadanie 8
+#|#lang typed/racket
+;; definicja typu wyrażeń
+(define-type BinopNum (U '+ '- '*))(define-type BinopRel (U '= '>))(define-type BinopBool (U 'and 'or))(define-type BinopAppend 'append)(define-type BinopSym (U BinopNum BinopRel BinopBool BinopAppend))(struct expr-binop ([op : BinopSym] [l : Expr] [r : Expr]))(struct expr-if ([c : Expr] [t : Expr] [f : Expr]))(struct expr-let ([var : Symbol] [def : Expr] [expr : Expr]))(define-type Literal (U Integer Boolean String))(define-type Expr (U Symbol Literal expr-binop expr-if expr-let))
+(define-predicate literal? Literal)(define-predicate op-num? BinopNum)(define-predicate op-rel? BinopRel)(define-predicate op-bool? BinopBool)(define-predicate op-append? BinopAppend)
+;; środowiska
+(define-type Value (U Integer Boolean String))(define-type (Env A) (Listof (List Symbol A)))(define-type VEnv (Env Value))
+(: empty-env (All (A) (-> (Env A))))(define (empty-env)  null)
+(: add-to-env (All (A) (-> Symbol A (Env A) (Env A))))(define (add-to-env x v env)  (cons (list x v) env))
+(: find-in-env (All (A) (-> Symbol (Env A) A)))(define (find-in-env x env)  (cond [(null? env) (error "undefined variable" x)]        [(eq? x (caar env)) (cadar env)]        [else (find-in-env x (cdr env))]))
+;; ewaluator
+(: op-num->proc (-> BinopNum (-> Value Value Value)))(define (op-num->proc op)  (lambda (a b)    (if (and (number? a) (number? b))        (cond [(eq? op '+) (+ a b)]              [(eq? op '*) (* a b)]              [(eq? op '-) (- a b)])        (error "type error in op-num->proc"))))
+(: op-rel->proc (-> BinopRel (-> Value Value Value)))(define (op-rel->proc op)  (lambda (a b)    (if (and (number? a) (number? b))        (cond [(eq? op '=) (= a b)]              [(eq? op '>) (> a b)])        (error "type error in op-num->proc"))))
+(: op-bool->proc (-> BinopBool (-> Value Value Value)))(define (op-bool->proc op)  (lambda (a b)    (if (and (boolean? a) (boolean? b))        (cond [(eq? op 'and) (and a b)]              [(eq? op 'or) (or a b)])        (error "type error in op-num->proc"))))
+(: op->proc (-> BinopSym (-> Value Value Value)))(define (op->proc op)  (cond [(op-num? op) (op-num->proc op)]        [(op-rel? op) (op-rel->proc op)]        [(op-bool? op) (op-bool->proc op)]        [(op-append? op) (op-append->proc op)]))
+(: op-append->proc (-> BinopAppend (-> Value Value Value)))(define (op-append->proc op)  (lambda (a b)  (cond [(and (list? a) (list? b)) (append a b)]       (error "type error in op-append->proc"))))
+(: eval (-> VEnv Expr Value))(define (eval env e)  (cond [(literal? e) e]        [(symbol? e) (find-in-env e env)]        [(expr-binop? e)         ((op->proc (expr-binop-op e))          (eval env (expr-binop-l e))          (eval env (expr-binop-r e)))]        [(expr-if? e)         (if (eval env (expr-if-c e))             (eval env (expr-if-t e))             (eval env (expr-if-f e)))]        [(expr-let? e)         (eval (add-to-env (expr-let-var e) (eval env (expr-let-def e)) env)               (expr-let-expr e))]))
+;; typechecker
+(define-type EType (U 'integer 'boolean 'string))(define-type TEnv (Env EType))
+(: typeinfer (-> TEnv Expr EType))(define (typeinfer env e)  (define (equal-types t1 t2)    (if (equal? t1 t2) #t (error "type error")))  (cond [(integer? e) 'integer]        [(boolean? e) 'boolean]        [(string? e) 'string]        [(symbol? e) (find-in-env e env)]        [(expr-binop? e)         (define (typeinfer-binop t1 t2)                (let ([lt (typeinfer env (expr-binop-l e))]                      [rt (typeinfer env (expr-binop-r e))])                  (equal-types lt t1)                  (equal-types rt t1)                  t2))         (cond [(op-num? (expr-binop-op e))                (typeinfer-binop 'integer 'integer)]               [(op-rel? (expr-binop-op e))                (typeinfer-binop 'integer 'boolean)]               [(op-bool? (expr-binop-op e))                (typeinfer-binop 'boolean 'boolean)]               [(op-append? (expr-binop-op e))                (typeinfer-binop 'string 'string)])]        [(expr-if? e)         (let ([ct (typeinfer env (expr-if-c e))]               [tt (typeinfer env (expr-if-t e))]               [ft (typeinfer env (expr-if-f e))])           (equal-types ct 'boolean)           (equal-types tt ft)           tt)]        [(expr-let? e)         (let* ([dt (typeinfer env (expr-let-def e))]                [env1 (add-to-env (expr-let-var e) dt env)]                [et (typeinfer env1 (expr-let-expr e))])           et)]))
+|#
