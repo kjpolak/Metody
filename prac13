@@ -1,0 +1,217 @@
+#lang racket
+
+(require racklog)
+
+;; predykat unarny %male reprezentuje zbiór mężczyzn
+(define %male
+  (%rel ()
+        [('adam)]
+        [('john)]
+        [('joshua)]
+        [('mark)]
+        [('david)]))
+
+;; predykat unarny %female reprezentuje zbiór kobiet
+(define %female
+  (%rel ()
+        [('eve)]
+        [('helen)]
+        [('ivonne)]
+        [('anna)]))
+
+;; predykat binarny %parent reprezentuje relację bycia rodzicem
+(define %parent
+  (%rel ()
+        [('adam 'helen)]
+        [('adam 'ivonne)]
+        [('adam 'anna)]
+        [('eve 'helen)]
+        [('eve 'ivonne)]
+        [('eve 'anna)]
+        [('john 'joshua)]
+        [('helen 'joshua)]
+        [('ivonne 'david)]
+        [('mark 'david)]))
+
+;; predykat binarny %sibling reprezentuje relację bycia rodzeństwem
+(define %sibling
+  (%rel (a b c)
+        [(a b)
+         (%parent c a)
+         (%parent c b)]))
+
+;; predykat binarny %sister reprezentuje relację bycia siostrą
+(define %sister
+  (%rel (a b)
+        [(a b)
+         (%sibling a b)
+         (%female a)]))
+
+;; predykat binarny %ancestor reprezentuje relację bycia przodkiem
+(define %ancestor
+  (%rel (a b c)
+        [(a b)
+         (%parent a b)]
+        [(a b)
+         (%parent a c)
+         (%ancestor c b)]))
+
+;;;zadanie 1
+(define %grandson
+  (%rel (a b c)
+        [(a c)
+         (%parent a b)
+         (%parent b c)
+         (%male c)]))
+
+(define %cousin
+  (%rel (a b c d)
+        [(c d)
+         (%sibling a b)
+         (%parent a c)
+         (%parent b d)]))
+
+(define %is-mother
+  (%rel (a b)
+        [(a)
+         (%parent a b)
+         (%female a)]))
+
+(define %is-father
+  (%rel (a b)
+        [(a)
+         (%parent a b)
+         (%male a)]))
+
+;;;zadanie 2
+(%find-all () (%ancestor 'mark 'john))
+(%find-all (x) (%ancestor 'adam x))
+(%find-all (x) (%sister 'ivonne x))
+(%find-all (x y) (%cousin x y))
+;(%find-all (x) (%let (y) (%find-all (x) (%cousin x y))));wszystkie osoby w rodzinie, które mają kuzyna
+
+(define %my-append
+  (%rel (x xs ys zs)
+        [(null ys ys)]
+        [((cons x xs) ys (cons x zs))
+         (%my-append xs ys zs)]))
+
+(define %my-member
+  (%rel (x xs y)
+        [(x (cons x xs))]
+        [(y (cons x xs))
+         (%my-member y xs)]))
+
+(define %select
+  (%rel (x xs y ys)
+        [(x (cons x xs) xs)]
+        [(y (cons x xs) (cons x ys))
+         (%select y xs ys)]))
+
+;; prosta rekurencyjna definicja
+(define %simple-length
+  (%rel (x xs n m)
+        [(null 0)]
+        [((cons x xs) n)
+         (%simple-length xs m)
+         (%is n (+ m 1))]))
+(display "lalala")
+;; test w trybie +- (działa)
+(%find-all (a) (%simple-length (list 1 2) a))
+;; test w trybie ++ (działa)
+(%find-all () (%simple-length (list 1 2) 2))
+;; test w trybie -+ (1 odpowiedź, pętli się)
+(%which (xs) (%simple-length xs 2))
+;; test w trybie -- (nieskończona liczba odpowiedzi)
+(%which (xs a) (%simple-length xs a))
+
+;; definicja zakładająca, że długość jest znana
+(define %gen-length
+  (%rel (x xs n m)
+        [(null 0) !]
+        [((cons x xs) n)
+         (%is m (- n 1))
+         (%gen-length xs m)]))
+;; test w trybie ++ (działa)
+(%find-all () (%gen-length (list 1 2) 2))
+;; test w trybie -+ (działa)
+(%find-all (xs) (%gen-length xs 2))
+
+
+;;;zadanie 3
+(%which (xs ys) (%my-append xs xs ys))
+(%which (x) (%select x '(1 2 3 4) '(1 2 4)))
+(%find-all (x ys) (%select x '(1 2 3 4) ys))
+(%find-all (xs) (%my-append '(1 2 3) xs '(1 2 3 4 5)))
+;(%which (xs) (%my-append '(1 2 3) xs '(1 2 3 4 5)))
+
+
+;;;zadanie 5
+;(%which (x) (%= x (list 'f x)));;;jakiś okses check, poszikać tego
+
+;;;zadanie 6
+
+(define %sublist
+  (%rel (x xs ys xs1 ys1)
+        [(null ys)]
+        [((cons x xs1) (cons x ys1))
+         (%sublist xs1 ys1)]
+        [(xs (cons x ys1))
+         (%sublist xs ys1)]))
+
+(%find-all (x) (%sublist x '(1 2 3)))
+(%which () (%sublist '(2 3) '(1 2 3 4)))
+(%which (x) (%sublist x '(1 2 3)));czy zwróci jedno rozwiązanie, wiele, czy się zapętli
+
+;;;zadanie 7
+
+(define %perm
+  (%rel (x xs ys zs)
+        [(null null)]
+        [((cons x xs) ys)
+         (%perm xs zs)
+         (%select x ys zs)]));tryb + -
+
+(define %perm1
+  (%rel (x xs ys zs)
+        [(null null)]
+        [((cons x xs) ys)
+         (%select x ys zs)
+         (%perm1 xs zs)]));tryb - +
+
+;;;zadanie 8
+
+#|
+(define (list->num xs)
+  (define (helper xs acc)
+    (if (null? xs)
+        acc
+        (helper (cdr xs) (+ (car xs) (* 10 n)))))
+  (helper xs 0))|#
+
+(define (list->num xs)
+  (foldl (lambda (y x) (+ (* x 10) y)) 0 xs))
+
+(list->num '(1 2 3 4))
+
+#|(define %send-more
+  (%rel (D E M N O R S Y xs ys acc)
+        [(D E M N O R S Y)
+         (%gen-length xs 8);;;TU COŚ NIE DZIAŁA WTF
+         (%sublist xs '(0 1 2 3 4 5 6 7 8 9))
+         (%perm xs ys)
+         (%= ys (list D E M N O R S Y))
+         (%=/= M 0)
+         (%=/= S 0)
+         (%is acc (list->num (list M O N E Y)))
+         (%is acc (+ (list->num (list S E N D)) (list->num (list M O R E))))]))
+
+(%which (D E M N O R S Y) (%send-more D E M N O R S Y))|#
+
+
+(define (append2 x y)
+  (if (null? x)
+      y
+      (append2 (cdr x) (cons (car x) y))))
+
+(append2 (list 1 2) (list 3 4))
